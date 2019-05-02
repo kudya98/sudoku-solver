@@ -1,5 +1,4 @@
 class Sudoku {
-
     constructor(puzzle) {
         this.data = puzzle.map(function(row) {
             return row.slice();
@@ -34,19 +33,23 @@ class Sudoku {
             return arr;
         };
     }
+    static generate(difficulty = 35){
+        if (difficulty<0) difficulty = 0;
+        if (difficulty>81) difficulty = 81;
+        let puzzle = new Sudoku([]);
+        for (let i=0;i<9;i++) puzzle.data.push([0,0,0,0,0,0,0,0,0]);
+        let count=difficulty;
+        while (count) {
+            let i = Math.floor(Math.random() * 9);
+            let j = Math.floor(Math.random() * 9);
+            if (!puzzle.possibleCellValues(i, j)) continue;
+            if (puzzle.possibleCellValues(i, j).length===0) return this.generate(difficulty);
+                puzzle.data[i][j] = puzzle.possibleCellValues(i, j)[Math.floor(Math.random() * puzzle.possibleCellValues(i, j).length)];
+            count--;
+        }
+        return puzzle;
+    }
 
-    /*check(){
-        for (let row of this.rows){
-            if (row.length!== new Set(row).size) return false;
-        }
-        for (let column of this.columns){
-            if (column.length!== new Set(column).size) return false;
-        }
-        for (let square of this.squares){
-            if (square.length!== new Set(square).size) return false;
-        }
-            return true;
-    }*/
     check(){
         for (let row of this.rows()){
             let i = 0;
@@ -77,24 +80,12 @@ class Sudoku {
         this.squares()[squareNumber].forEach((num)=>impossibleCellValues.push(num));
         return [1,2,3,4,5,6,7,8,9].filter((num)=>!impossibleCellValues.includes(num));
     }
-
-    /*solve(){
-            for (let i=0;i<9;i++) {
-                for (let j=0; j<9; j++) {
-                    if (!this.data[i][j]) {
-                        if (!this.possibleCellValues(i,j).length) {return 0;}
-                        for (const num of this.possibleCellValues(i,j)) {
-                            let copy = new Sudoku(this.data);
-                            copy.data[i][j] = num;
-                            if (!copy.check()) copy.solve();
-                            else console.log(copy.data);
-                        }
-                    }
-                }
-            }
-    }*/
-    lightSolve() {
+    smartSolve() {
+        let timer0 = new Date();
         let next = true;
+        let start = this.data.map(function(row) {
+            return row.slice();
+        });
         while (next){
             next = false;
             for (let i = 0; i < 9; i++) {
@@ -106,54 +97,94 @@ class Sudoku {
                         if (this.possibleCellValues(i, j).length === 1) {
                             this.data[i][j] = this.possibleCellValues(i, j)[0];
                             next = true;
-                        } /*else
-                        if (this.possibleCellValues(i, j).length > 1) {
-                            possibleCells.push({i,j,nums:this.possibleCellValues(i, j)});
-                        }*/
+                        }
                     }
                 }
             }
-        }
-        return this.check();
-    }
-    randomSolve() {
-        let timer0 = new Date();
-        if (this.lightSolve()) return this.data;
-        let start = this.data.map(function(row) {
-            return row.slice();
-        });
-        while (!this.check()){
-            for (let i = 0; i < 9; i++) {
-            for (let j = 0; j < 9; j++) {
-                if (!this.data[i][j]) {
-                    if (this.possibleCellValues(i, j).length === 0) {
-                        this.data = start.map(function(row) {
-                            return row.slice();
-                        });
-                    } else if (this.possibleCellValues(i, j).length === 1) {
-                        this.data[i][j] = this.possibleCellValues(i, j)[0];
-                    } else if (this.possibleCellValues(i, j).length > 1) {
-                        this.data[i][j] = this.possibleCellValues(i, j)[Math.floor(Math.random() * this.possibleCellValues(i, j).length)];
+            for (let squareNumber=0;squareNumber<8;squareNumber++) {
+                let n = Math.floor(squareNumber / 3) * 3;
+                let m = (squareNumber % 3) * 3;
+                let possibleCells = [];
+                for (let i=n;i<n+3;i++){
+                    for (let j=m;j<m+3;j++){
+                        if (!this.possibleCellValues(i,j)) continue;
+                        for (const num of this.possibleCellValues(i,j)) {
+                            possibleCells.push(num);
+                        }
+                    }
+                }
+                let counts = {};
+                for (let i = 0; i < possibleCells.length; i++) {
+                    let num = possibleCells[i];
+                    counts[num] = counts[num] ? counts[num] + 1 : 1;
+                }
+                for (let key in counts) {
+                    if (counts[key]===1) {
+                        for (let i=n;i<n+3;i++){
+                            for (let j=m;j<m+3;j++){
+                                if (!this.possibleCellValues(i,j)) continue;
+                                if (this.possibleCellValues(i,j).includes(parseInt(key))) {
+                                    this.data[i][j] = parseInt(key);
+                                    next = true;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        console.log(this.data);
-        console.log(new Date()-timer0);
-        this.data = start;
+        if (this.check()) {
+            //console.log(this.data);
+            console.log('Smart solved: '+(new Date()-timer0)+' ms');
+            this.data = start.map(function(row) {
+                return row.slice();
+            });
+            return true;
+        }
+        return this;
+    }
+    randomSolve() {
+        let timer0 = new Date();
+        let start = this.data.map(function(row) {
+            return row.slice();
+        });
+        //if (this.smartSolve()) return true;
+        while (!this.check()){
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    if (!this.data[i][j]) {
+                        if (this.possibleCellValues(i, j).length === 0) {
+                            this.data = start.map(function(row) {
+                                return row.slice();
+                            });
+                        } else if (this.possibleCellValues(i, j).length === 1) {
+                            this.data[i][j] = this.possibleCellValues(i, j)[0];
+                        } else if (this.possibleCellValues(i, j).length > 1) {
+                            this.data[i][j] = this.possibleCellValues(i, j)[Math.floor(Math.random() * this.possibleCellValues(i, j).length)];
+                        }
+                    }
+                }
+            }
+        }
+        //console.log(this.data);
+        console.log('Random solved: '+(new Date()-timer0)+' ms');
+        this.data = start.map(function(row) {
+            return row.slice();
+        });
         return true;
     }
     bruteForceSolve() {
+        let solutions = [];
+        let timer0 = new Date();
         function paths(list, n = 0, result = [], current = []){
             if (n === list.length) result.push(current);
             else list[n].forEach(item => paths(list, n+1, result, [...current, item]));
             return result;
         }
-        if (this.lightSolve()) return this.data;
         let start = this.data.map(function(row) {
             return row.slice();
         });
+        //if (this.smartSolve()) return true;
         let possibleCells = [];
         for (let i = 0; i < 9; i++) {
             for (let j = 0; j < 9; j++) {
@@ -164,20 +195,60 @@ class Sudoku {
                 }
             }
         }
-        return paths(possibleCells);
+        if (possibleCells.length>30) {
+            console.log('Too deep');
+            return false;
+        }
+        for (const path of paths(possibleCells)) {
+            for (let i = 8; i >= 0; i--) {
+                for (let j = 8; j >= 0; j--) {
+                    if (!this.data[i][j]) {
+                        this.data[i][j]=path.pop();
+                    }
+                }
+            }
+            if (this.check()) {
+                //console.log(this.data);
+                solutions.push(this.data);
+            }
+            this.data = start.map(function(row) {
+                return row.slice();
+            });
+        }
+        //console.log(this.data);
+        console.log('Solutions: '+solutions.length);
+        console.log('Bruteforce solved: '+(new Date()-timer0)+' ms');
+        this.data = start.map(function(row) {
+            return row.slice();
+        });
+        return true;
     }
 }
 
+/*[ [ 3, 9, 4, 1, 5, 2, 6, 8, 7 ],
+  [ 7, 6, 2, 3, 9, 8, 5, 4, 1 ],
+  [ 1, 5, 8, 4, 6, 7, 9, 3, 2 ],
+  [ 9, 2, 1, 8, 3, 4, 7, 5, 6 ],
+  [ 8, 7, 3, 5, 2, 6, 1, 9, 4 ],
+  [ 5, 4, 6, 9, 7, 1, 3, 2, 8 ],
+  [ 2, 3, 7, 6, 4, 5, 8, 1, 9 ],
+  [ 6, 1, 9, 2, 8, 3, 4, 7, 5 ],
+  [ 4, 8, 5, 7, 1, 9, 2, 6, 3 ] ]
+*/
 const puzzle = [
-    [5,3,0,0,7,0,0,0,0],
-    [6,0,0,1,9,5,0,0,0],
-    [0,9,8,0,0,0,0,6,0],
-    [8,0,0,0,6,0,0,0,3],
-    [4,0,0,8,0,3,0,0,1],
-    [7,0,0,0,2,0,0,0,6],
-    [0,6,0,0,0,0,2,8,0],
-    [0,0,0,4,1,9,0,0,5],
-    [0,0,0,0,8,0,0,0,9]];
+    [ 3, 0, 0, 0, 0, 0, 0, 0, 7 ],
+    [ 7, 0, 0, 0, 0, 0, 0, 4, 0 ],
+    [ 0, 0, 8, 0, 0, 0, 9, 0, 2 ],
+    [ 9, 2, 1, 8, 0, 0, 7, 0, 0 ],
+    [ 0, 0, 0, 5, 2, 6, 1, 0, 0 ],
+    [ 0, 0, 0, 0, 0, 1, 3, 2, 0 ],
+    [ 2, 0, 7, 0, 4, 0, 8, 0, 0 ],
+    [ 0, 1, 0, 0, 0, 0, 0, 7, 5 ],
+    [ 4, 0, 0, 0, 0, 0, 2, 6, 3 ] ];
+/*
 let game = new Sudoku(puzzle);
-console.log(game.bruteForceSolve())
-//game.randomSolve();
+if (game.smartSolve()!==true) game.randomSolve();
+if (game.smartSolve()!==true) game.bruteForceSolve();
+*/
+let game = Sudoku.generate(32);
+if (game.smartSolve()!==true) game.randomSolve();
