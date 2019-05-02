@@ -141,6 +141,7 @@ class Sudoku {
         }
         console.log(this.data);
         console.log(new Date()-timer0);
+        this.data = start;
         return true;
     }
     bruteForceSolve() {
@@ -150,7 +151,9 @@ class Sudoku {
             return result;
         }
         if (this.lightSolve()) return this.data;
-        this.start = [...this.data];
+        let start = this.data.map(function(row) {
+            return row.slice();
+        });
         let possibleCells = [];
         for (let i = 0; i < 9; i++) {
             for (let j = 0; j < 9; j++) {
@@ -161,13 +164,12 @@ class Sudoku {
                 }
             }
         }
-        let possiblePaths = paths(possibleCells);
-        return possibleCells;
+        return paths(possibleCells);
     }
 }
 
 const puzzle = [
-    [5,3,0,0,0,0,0,0,0],
+    [5,3,0,0,7,0,0,0,0],
     [6,0,0,1,9,5,0,0,0],
     [0,9,8,0,0,0,0,6,0],
     [8,0,0,0,6,0,0,0,3],
@@ -175,6 +177,7 @@ const puzzle = [
     [7,0,0,0,2,0,0,0,6],
     [0,6,0,0,0,0,2,8,0],
     [0,0,0,4,1,9,0,0,5],
-    [0,0,0,0,8,0,0,7,9]];
+    [0,0,0,0,8,0,0,0,9]];
 let game = new Sudoku(puzzle);
-game.randomSolve();
+console.log(game.bruteForceSolve())
+//game.randomSolve();
