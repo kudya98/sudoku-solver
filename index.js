@@ -47,6 +47,15 @@ class Sudoku {
                 puzzle.data[i][j] = puzzle.possibleCellValues(i, j)[Math.floor(Math.random() * puzzle.possibleCellValues(i, j).length)];
             count--;
         }
+        if (!puzzle.smartSolve()) return this.generate(difficulty);
+        if (difficulty+puzzle.smartSolve().solvedCells<52) return this.generate(difficulty);
+        /*
+        puzzle = new Sudoku(puzzle.smartSolve().result);
+        if (!puzzle.bruteForceSolve(2**10)) return this.generate(difficulty);
+        if (!puzzle.bruteForceSolve().solved) return this.generate(difficulty);
+        */
+        console.log('Generated:');
+        console.log(puzzle.data);
         return puzzle;
     }
 
@@ -83,6 +92,7 @@ class Sudoku {
     smartSolve() {
         let timer0 = new Date();
         let next = true;
+        let solvedCells = 0;
         let start = this.data.map(function(row) {
             return row.slice();
         });
@@ -96,6 +106,7 @@ class Sudoku {
                         } else
                         if (this.possibleCellValues(i, j).length === 1) {
                             this.data[i][j] = this.possibleCellValues(i, j)[0];
+                            solvedCells++;
                             next = true;
                         }
                     }
@@ -125,6 +136,7 @@ class Sudoku {
                                 if (!this.possibleCellValues(i,j)) continue;
                                 if (this.possibleCellValues(i,j).includes(parseInt(key))) {
                                     this.data[i][j] = parseInt(key);
+                                    solvedCells++;
                                     next = true;
                                 }
                             }
@@ -133,22 +145,29 @@ class Sudoku {
                 }
             }
         }
-        if (this.check()) {
-            //console.log(this.data);
-            console.log('Smart solved: '+(new Date()-timer0)+' ms');
-            this.data = start.map(function(row) {
-                return row.slice();
-            });
-            return true;
+        let time = new Date()-timer0;
+        let solved = this.check();
+        //disable side effects
+        let result = this.data.map(function(row) {
+            return row.slice();
+        });
+        this.data = start.map(function(row) {
+            return row.slice();
+        });
+        return {
+            start,
+            result,
+            solved,
+            solvedCells,
+            time
         }
-        return this;
     }
     randomSolve() {
         let timer0 = new Date();
         let start = this.data.map(function(row) {
             return row.slice();
         });
-        //if (this.smartSolve()) return true;
+        //this.data = this.smartSolve().result;
         while (!this.check()){
             for (let i = 0; i < 9; i++) {
                 for (let j = 0; j < 9; j++) {
@@ -166,17 +185,28 @@ class Sudoku {
                 }
             }
         }
-        //console.log(this.data);
-        console.log('Random solved: '+(new Date()-timer0)+' ms');
+        let time = new Date()-timer0;
+        let solved = this.check();
+        //disable side effects
+        let result = this.data.map(function(row) {
+            return row.slice();
+        });
         this.data = start.map(function(row) {
             return row.slice();
         });
-        return true;
+        return {
+            start,
+            result,
+            solved,
+            time
+        }
     }
     bruteForceSolve() {
+        const MAX_PATHS = 2**19;
         let solutions = [];
         let timer0 = new Date();
         function paths(list, n = 0, result = [], current = []){
+            if (result.length>MAX_PATHS) return false;
             if (n === list.length) result.push(current);
             else list[n].forEach(item => paths(list, n+1, result, [...current, item]));
             return result;
@@ -184,21 +214,20 @@ class Sudoku {
         let start = this.data.map(function(row) {
             return row.slice();
         });
-        //if (this.smartSolve()) return true;
         let possibleCells = [];
         for (let i = 0; i < 9; i++) {
             for (let j = 0; j < 9; j++) {
                 if (!this.data[i][j]) {
-                    if (this.possibleCellValues(i, j).length > 1) {
+                    if (this.possibleCellValues(i, j).length > 0) {
                         possibleCells.push(this.possibleCellValues(i, j));
                     }
                 }
             }
         }
-        if (possibleCells.length>30) {
-            console.log('Too deep');
+        /*if (possibleCells.length>25) {
+           //console.log('Too deep');
             return false;
-        }
+        }*/
         for (const path of paths(possibleCells)) {
             for (let i = 8; i >= 0; i--) {
                 for (let j = 8; j >= 0; j--) {
@@ -208,24 +237,27 @@ class Sudoku {
                 }
             }
             if (this.check()) {
-                //console.log(this.data);
                 solutions.push(this.data);
             }
             this.data = start.map(function(row) {
                 return row.slice();
             });
         }
-        //console.log(this.data);
-        console.log('Solutions: '+solutions.length);
-        console.log('Bruteforce solved: '+(new Date()-timer0)+' ms');
-        this.data = start.map(function(row) {
-            return row.slice();
-        });
-        return true;
+        let time = new Date()-timer0;
+        return {
+            start,
+            solutions:solutions.length,
+            //result:solutions,
+            solved:(!!solutions.length),
+            time
+        }
     }
 }
 
-/*[ [ 3, 9, 4, 1, 5, 2, 6, 8, 7 ],
+//node --max-old-space-size=8192 --stack-size=40000  index.js
+//console.log(process.memoryUsage());
+/*const puzzle = [
+  [ 3, 9, 4, 1, 5, 2, 6, 8, 7 ],
   [ 7, 6, 2, 3, 9, 8, 5, 4, 1 ],
   [ 1, 5, 8, 4, 6, 7, 9, 3, 2 ],
   [ 9, 2, 1, 8, 3, 4, 7, 5, 6 ],
@@ -234,21 +266,15 @@ class Sudoku {
   [ 2, 3, 7, 6, 4, 5, 8, 1, 9 ],
   [ 6, 1, 9, 2, 8, 3, 4, 7, 5 ],
   [ 4, 8, 5, 7, 1, 9, 2, 6, 3 ] ]
-*/
-const puzzle = [
-    [ 3, 0, 0, 0, 0, 0, 0, 0, 7 ],
-    [ 7, 0, 0, 0, 0, 0, 0, 4, 0 ],
-    [ 0, 0, 8, 0, 0, 0, 9, 0, 2 ],
-    [ 9, 2, 1, 8, 0, 0, 7, 0, 0 ],
-    [ 0, 0, 0, 5, 2, 6, 1, 0, 0 ],
-    [ 0, 0, 0, 0, 0, 1, 3, 2, 0 ],
-    [ 2, 0, 7, 0, 4, 0, 8, 0, 0 ],
-    [ 0, 1, 0, 0, 0, 0, 0, 7, 5 ],
-    [ 4, 0, 0, 0, 0, 0, 2, 6, 3 ] ];
-/*
 let game = new Sudoku(puzzle);
 if (game.smartSolve()!==true) game.randomSolve();
 if (game.smartSolve()!==true) game.bruteForceSolve();
 */
-let game = Sudoku.generate(32);
-if (game.smartSolve()!==true) game.randomSolve();
+
+
+let generate = Sudoku.generate(37);
+let game = new Sudoku(generate.smartSolve().result);
+console.log(game.bruteForceSolve());
+
+
+
