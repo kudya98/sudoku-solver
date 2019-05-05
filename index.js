@@ -33,32 +33,47 @@ class Sudoku {
             return arr;
         };
     }
-    static generate(difficulty = 35){
-        if (difficulty<0) difficulty = 0;
-        if (difficulty>81) difficulty = 81;
+    static generatev1(cells = 30){
+        if (cells<0) cells = 0;
+        if (cells>81) cells = 81;
         let puzzle = new Sudoku([]);
         for (let i=0;i<9;i++) puzzle.data.push([0,0,0,0,0,0,0,0,0]);
-        let count=difficulty;
+        let count=cells;
         while (count) {
             let i = Math.floor(Math.random() * 9);
             let j = Math.floor(Math.random() * 9);
             if (!puzzle.possibleCellValues(i, j)) continue;
-            if (puzzle.possibleCellValues(i, j).length===0) return this.generate(difficulty);
+            if (puzzle.possibleCellValues(i, j).length===0) return this.generatev1(cells);
                 puzzle.data[i][j] = puzzle.possibleCellValues(i, j)[Math.floor(Math.random() * puzzle.possibleCellValues(i, j).length)];
             count--;
         }
-        if (!puzzle.smartSolve()) return this.generate(difficulty);
-        if (difficulty+puzzle.smartSolve().solvedCells<52) return this.generate(difficulty);
+        if (!puzzle.smartSolve()) return this.generatev1(cells);
+        if (cells+puzzle.smartSolve().solvedCells<50) return this.generatev1(cells);
         /*
         puzzle = new Sudoku(puzzle.smartSolve().result);
-        if (!puzzle.bruteForceSolve(2**10)) return this.generate(difficulty);
-        if (!puzzle.bruteForceSolve().solved) return this.generate(difficulty);
+        if (!puzzle.bruteForceSolve(2**10)) return this.generatev1(cells);
+        if (!puzzle.bruteForceSolve().solved) return this.generatev1(cells);
         */
-        console.log('Generated:');
-        console.log(puzzle.data);
         return puzzle;
     }
-
+    static generatev2(cells = 30) {
+        if (cells<0) cells = 0;
+        if (cells>81) cells = 81;
+        let puzzle = new Sudoku(this.generatev1(30).smartSolve().result).randomSolve();
+        if (puzzle.solved===false) return this.generatev2(cells);
+        else puzzle = puzzle.result;
+        let count=81-cells;
+        while (count) {
+            let i = Math.floor(Math.random() * 9);
+            let j = Math.floor(Math.random() * 9);
+            if (puzzle[i][j] === 0) continue;
+            puzzle[i][j] = 0;
+            count--;
+        }
+        console.log('Gegerated:');
+        console.log(puzzle.data);
+        return puzzle
+    }
     check(){
         for (let row of this.rows()){
             let i = 0;
@@ -145,7 +160,7 @@ class Sudoku {
                 }
             }
         }
-        let time = new Date()-timer0;
+        let time = new Date()-timer0+'ms';
         let solved = this.check();
         //disable side effects
         let result = this.data.map(function(row) {
@@ -155,7 +170,8 @@ class Sudoku {
             return row.slice();
         });
         return {
-            start,
+            method: 'smartSolve',
+            //start,
             result,
             solved,
             solvedCells,
@@ -163,16 +179,19 @@ class Sudoku {
         }
     }
     randomSolve() {
+        const MAX_TRIES = 2**15;
         let timer0 = new Date();
+        this.data = this.smartSolve().result;
         let start = this.data.map(function(row) {
             return row.slice();
         });
-        //this.data = this.smartSolve().result;
-        while (!this.check()){
+        let n = MAX_TRIES;
+        loop: while (!this.check()){
             for (let i = 0; i < 9; i++) {
                 for (let j = 0; j < 9; j++) {
                     if (!this.data[i][j]) {
                         if (this.possibleCellValues(i, j).length === 0) {
+                            if (--n<1) break loop;
                             this.data = start.map(function(row) {
                                 return row.slice();
                             });
@@ -185,7 +204,7 @@ class Sudoku {
                 }
             }
         }
-        let time = new Date()-timer0;
+        let time = new Date()-timer0+'ms';
         let solved = this.check();
         //disable side effects
         let result = this.data.map(function(row) {
@@ -195,16 +214,19 @@ class Sudoku {
             return row.slice();
         });
         return {
-            start,
+            method: 'randomSolve',
+            //start,
             result,
             solved,
-            time
+            time,
+            tries:MAX_TRIES-n,
         }
     }
     bruteForceSolve() {
-        const MAX_PATHS = 2**19;
+        const MAX_PATHS = 2**22;
         let solutions = [];
         let timer0 = new Date();
+        this.data = this.smartSolve().result;
         function paths(list, n = 0, result = [], current = []){
             if (result.length>MAX_PATHS) return false;
             if (n === list.length) result.push(current);
@@ -228,7 +250,8 @@ class Sudoku {
            //console.log('Too deep');
             return false;
         }*/
-        for (const path of paths(possibleCells)) {
+        let possiblePaths = paths(possibleCells);
+        for (const path of possiblePaths) {
             for (let i = 8; i >= 0; i--) {
                 for (let j = 8; j >= 0; j--) {
                     if (!this.data[i][j]) {
@@ -243,19 +266,20 @@ class Sudoku {
                 return row.slice();
             });
         }
-        let time = new Date()-timer0;
+        let time = new Date()-timer0+'ms';
         return {
-            start,
+            method: 'bruteForceSolve',
+            //start,
             solutions:solutions.length,
             //result:solutions,
             solved:(!!solutions.length),
-            time
+            time,
+            tries:Math.min(MAX_PATHS,possiblePaths.length-1)
         }
     }
 }
 
-//node --max-old-space-size=8192 --stack-size=40000  index.js
-//console.log(process.memoryUsage());
+//node --max-old-space-size=8192 --stack-size=80000  index.js
 /*const puzzle = [
   [ 3, 9, 4, 1, 5, 2, 6, 8, 7 ],
   [ 7, 6, 2, 3, 9, 8, 5, 4, 1 ],
@@ -267,14 +291,13 @@ class Sudoku {
   [ 6, 1, 9, 2, 8, 3, 4, 7, 5 ],
   [ 4, 8, 5, 7, 1, 9, 2, 6, 3 ] ]
 let game = new Sudoku(puzzle);
-if (game.smartSolve()!==true) game.randomSolve();
-if (game.smartSolve()!==true) game.bruteForceSolve();
 */
 
 
-let generate = Sudoku.generate(37);
-let game = new Sudoku(generate.smartSolve().result);
+let generate = Sudoku.generatev2(29);
+let game = new Sudoku(generate);
+console.log(game.smartSolve());
+console.log(game.randomSolve());
 console.log(game.bruteForceSolve());
-
 
 
